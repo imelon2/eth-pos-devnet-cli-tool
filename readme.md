@@ -100,7 +100,7 @@ Available Commands:
 - 본 Repo는 Docker Image `ethereum/client-go:v1.14.5`을 고정합니다.
 - Validator Deposit Contract는 `0x4242424242424242424242424242424242424242`에 배포됩니다.
 - Network 및 Client에 적용되는 환경 변수는 `.env`에서 설정할 수 있습니다.
-- 기본적으로 모든 RPC Host는 `0.0.0.0`로 설정되어 있습니다.
+- 기본적으로 모든 RPC Host는 `127.0.0.1`로 설정되어 있습니다.
 - Geth로 계정을 생성하는 경우, `./execution/password.txt` 파일을 통해 Keystore 비밀번호를 설정할 수 있습니다.
 - [Optional] blockscout는 기본적으로 `http://localhost:4001`에서 실행됩니다.
 
