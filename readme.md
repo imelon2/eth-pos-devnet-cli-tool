@@ -1,4 +1,4 @@
-# Dkargo Layer 1 Chain | Ethereum Proof-of-Stake Devnet
+# Ethereum Proof-of-Stake Devnet
 본 Repo는 **Geth와 Prysm**을 활용하여 Ethereum POS Local Node를 실행하기 위한 docker-compose와 CLI Tool을 제공합니다.
 > **[Optional]** 선택에 따라 **blockscout**를 활용하여 실행된 Node의 Block Explorer를 같이 실행할 수 있습니다.
 

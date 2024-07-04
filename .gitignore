@@ -1,2 +1,7 @@
 execution/password.txt
 execution/data/keystore
+execution/data
+execution/jwtsecret
+consensus/genesis.ssz
+consensus/beacondata
+consensus/validatordata
