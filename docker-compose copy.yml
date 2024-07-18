@@ -50,7 +50,6 @@ services:
       - --enable-debug-rpc-endpoints
       - --monitoring-port=${BEACON_MONITORING_PORT}
       - --pprofport=${BEACON_PPROF_PORT}
-      - --restore-source-file=${CONSENSUS_ROOT}/restore
       # - --force-clear-db
     ports:
       - ${BEACON_HOST}:${BEACON_RPC_PORT}:${BEACON_RPC_PORT}
@@ -64,11 +63,7 @@ services:
     depends_on:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1g"
-        max-file: "3"
+
   geth:
     image: "ethereum/client-go"
     command:
@@ -105,11 +100,6 @@ services:
           condition: service_completed_successfully
         beacon-chain:
           condition: service_started
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1g"
-        max-file: "3"
 
   validator:
     image: "gcr.io/prysmaticlabs/prysm/validator"
@@ -119,18 +109,13 @@ services:
       - --accept-terms-of-use
       - --interop-num-validators=64
       - --chain-config-file=${BEACON_CONFIG_ROOT}
-      - --db-backup-output-dir=${CONSENSUS_ROOT}/backup
       # - --force-clear-db
     volumes:
       - ./consensus:${CONSENSUS_ROOT}
     depends_on:
       beacon-chain:
         condition: service_started
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1g"
-        max-file: "3"
+
 #   ###############################################################################
 #   ###                               blockscout                                ###
 #   ###############################################################################   

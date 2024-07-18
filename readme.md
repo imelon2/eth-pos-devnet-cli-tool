@@ -21,6 +21,7 @@ Usage:
 Available Commands:
   execution, e       Run Geth Cli
   consensus, c       Run Prysm Cli
+  clean              Clean Geth & Prysm DB
   blockscout, b      Run Blockscout Cli
 ````
 본 Repo는 Ethereum POS의 **`execution layer(Geth)`** 와 **`consensus layer(Prysm)`** 를 실행하기 위한 명령어(CLI)를 제공합니다.
@@ -121,3 +122,6 @@ Available Commands:
   Just in case there's no final block yet (network not yet merged, weird restart, sethead, etc), fail gracefully.
   ````
   
+  docker compose up -d
+
+  ./cli.sh clean

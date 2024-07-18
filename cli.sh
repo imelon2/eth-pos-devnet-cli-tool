@@ -18,6 +18,7 @@ func_help()
     echo Available Commands:
     echo "  execution, e       Run Geth Cli"
     echo "  consensus, c       Run Prysm Cli"
+    echo "  clean              Clean Geth & Prysm DB"
     echo "  blockscout, b      Run Blockscout Cli"
 }
 
@@ -101,7 +102,7 @@ func_consensus()
             ;;
         "create-jwt-secret" | "jwt")
             echo "Create JWT secret -- 🚀"
-            docker compose run --rm create-jwt-secret
+            docker compose run --rm beacon-chain generate-auth-secret --output-file=${JWTSECRET_ROOT}
             ;;
         "run-beacon-chain" | "runb")
             echo "Run Consensus Layer beacon Node -- 🚀"
@@ -149,6 +150,10 @@ case "$1" in
         ;;
     "blockscout" | "b")
         func_blockscout $2
+        ;;
+    "clean" | "c")
+        rm -Rf ./consensus/beacondata ./consensus/validatordata ./consensus/genesis.ssz
+        rm -rf ./execution/data/geth
         ;;
     "help" | "h")
         func_help
