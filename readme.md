@@ -90,7 +90,7 @@ Available Commands:
 ./cli.sh consensus run-validator
 
 # (Optional) Run Block Explorer
-./cli.sh blockscout run
+# ./cli.sh blockscout run
 
 ```
 

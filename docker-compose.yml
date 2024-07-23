@@ -1,40 +1,40 @@
 version: "3.9"
 services:
-  create-beacon-chain-genesis:
-    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl"
-    command:
-      - testnet
-      - generate-genesis
-      - --fork=${FORK_VERSION}
-      - --num-validators=64
-      - --genesis-time-delay=15
-      - --output-ssz=${BEACON_GENESIS_ROOT}
-      - --chain-config-file=${BEACON_CONFIG_ROOT}
-      - --geth-genesis-json-in=${GENESIS_ROOT}
-      - --geth-genesis-json-out=${GENESIS_ROOT}
-    volumes:
-      - ./consensus:${CONSENSUS_ROOT}
-      - ./execution:${EXECUTION_ROOT}
+  # create-beacon-chain-genesis:
+  #   image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl"
+  #   command:
+  #     - testnet
+  #     - generate-genesis
+  #     - --fork=${FORK_VERSION}
+  #     - --num-validators=64
+  #     # - --genesis-time-delay=15
+  #     - --output-ssz=${BEACON_GENESIS_ROOT}
+  #     - --chain-config-file=${BEACON_CONFIG_ROOT}
+  #     - --geth-genesis-json-in=${GENESIS_ROOT}
+  #     - --geth-genesis-json-out=${GENESIS_ROOT}
+  #   volumes:
+  #     - ./consensus:${CONSENSUS_ROOT}
+  #     - ./execution:${EXECUTION_ROOT}
   
-  geth-genesis:
-    image: "ethereum/client-go"
-    command: --datadir=${EXECUTION_ROOT}/data init ${GENESIS_ROOT}
-    volumes:
-      - ./consensus:${CONSENSUS_ROOT}
-      - ./execution/genesis.json:${GENESIS_ROOT}
-      - ./execution:${EXECUTION_ROOT}
-    depends_on:
-      create-beacon-chain-genesis:
-        condition: service_completed_successfully
+  # geth-genesis:
+  #   image: "ethereum/client-go"
+  #   command: --datadir=${EXECUTION_ROOT}/data init ${GENESIS_ROOT}
+  #   volumes:
+  #     - ./consensus:${CONSENSUS_ROOT}
+  #     - ./execution/genesis.json:${GENESIS_ROOT}
+  #     - ./execution:${EXECUTION_ROOT}
+    # depends_on:
+    #   create-beacon-chain-genesis:
+    #     condition: service_completed_successfully
 
   beacon-chain:
-    image: "gcr.io/prysmaticlabs/prysm/beacon-chain"
+    container_name: beacon-chain
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:stable"
     command:
       - --datadir=${CONSENSUS_ROOT}/beacondata
       - --min-sync-peers=0
       - --genesis-state=${BEACON_GENESIS_ROOT}
       - --bootstrap-node=
-      - --interop-eth1data-votes
       - --chain-config-file=${BEACON_CONFIG_ROOT}
       - --contract-deployment-block=0
       - --chain-id=${CHAIN_ID}
@@ -50,8 +50,10 @@ services:
       - --enable-debug-rpc-endpoints
       - --monitoring-port=${BEACON_MONITORING_PORT}
       - --pprofport=${BEACON_PPROF_PORT}
-      - --restore-source-file=${CONSENSUS_ROOT}/restore
-      # - --force-clear-db
+      - --force-clear-db
+      # - --interop-eth1data-votes
+      # - --restore-source-file=${CONSENSUS_ROOT}/bea/backup
+      # - --restore-target-dir=${CONSENSUS_ROOT}/beacondata
     ports:
       - ${BEACON_HOST}:${BEACON_RPC_PORT}:${BEACON_RPC_PORT}
       - ${BEACON_HOST}:${BEACON_GRPC_PORT}:${BEACON_GRPC_PORT}
@@ -61,15 +63,16 @@ services:
     volumes:
       - ./consensus:${CONSENSUS_ROOT}
       - ./execution:${EXECUTION_ROOT}
-    depends_on:
-      create-beacon-chain-genesis:
-        condition: service_completed_successfully
+    # depends_on:
+    #   create-beacon-chain-genesis:
+    #     condition: service_completed_successfully
     logging:
       driver: "json-file"
       options:
         max-size: "1g"
         max-file: "3"
   geth:
+    container_name: geth
     image: "ethereum/client-go"
     command:
       - --datadir=${EXECUTION_ROOT}/data
@@ -90,6 +93,7 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=${GETH_AUTH_RPC_PORT}
       - --authrpc.jwtsecret=${JWTSECRET_ROOT}
+      - --beacon.config=${BEACON_CONFIG_ROOT}
       # - --allow-insecure-unlock
       # - --unlock=${MINER_ADDRESS}
       # - --password=${PASSWORD_ROOT}
@@ -101,8 +105,8 @@ services:
     volumes:
       - ./execution:${EXECUTION_ROOT}
     depends_on:
-        geth-genesis:
-          condition: service_completed_successfully
+        # geth-genesis:
+        #   condition: service_completed_successfully
         beacon-chain:
           condition: service_started
     logging:
@@ -112,15 +116,21 @@ services:
         max-file: "3"
 
   validator:
-    image: "gcr.io/prysmaticlabs/prysm/validator"
+    container_name: validator
+    image: "gcr.io/prysmaticlabs/prysm/validator:stable"
     command:
       - --datadir=${CONSENSUS_ROOT}/validatordata
       - --beacon-rpc-provider=beacon-chain:${BEACON_RPC_PORT}
       - --accept-terms-of-use
       - --interop-num-validators=64
       - --chain-config-file=${BEACON_CONFIG_ROOT}
-      - --db-backup-output-dir=${CONSENSUS_ROOT}/backup
-      # - --force-clear-db
+      - --db-backup-output-dir=${CONSENSUS_ROOT}/vali
+      - --enable-db-backup-webhook=true
+      - --monitoring-host=0.0.0.0
+      - --monitoring-port=8081
+      - --force-clear-db
+    ports:
+      - 8081:8081
     volumes:
       - ./consensus:${CONSENSUS_ROOT}
     depends_on:

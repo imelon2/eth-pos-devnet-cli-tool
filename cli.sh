@@ -71,14 +71,24 @@ func_execution()
             ;;
         "init")
             echo "Run go-ethereum init genesis block -- 🚀"
-            docker compose run --rm geth init --datadir $EXECUTION_ROOT/data $GENESIS_ROOT
+            docker compose run --no-deps --rm geth-genesis --datadir $EXECUTION_ROOT/data init $GENESIS_ROOT
             ;;
         "run")
             echo "Run Execution Layer go-ethereum Node -- 🚀"
-            docker compose -p $PROJECT_NAME up -d geth
+            docker compose -p $PROJECT_NAME up --no-deps -d geth
+            ;;
+        "export")
+            echo "Backup Execution Layer Node DB -- 🚀"
+            docker compose stop geth
+            docker compose run --no-deps --rm geth-genesis --datadir $EXECUTION_ROOT/data/geth export $EXECUTION_ROOT/backup/data
+            docker compose restart geth --no-deps 
+            ;;
+        "import")
+            echo "Import Execution Layer Node DB -- 🚀"
+            docker compose run --no-deps --rm geth-genesis --datadir $EXECUTION_ROOT/data/geth import $EXECUTION_ROOT/backup/data
             ;;
         "attach"| "a")
-            docker compose run --rm geth-scripts attach $EXECUTION_ROOT/data/geth.ipc
+            docker compose run --no-deps --rm geth-genesis attach $EXECUTION_ROOT/data/geth.ipc
             ;;
         "clean")
             echo "Clear go-ethereum DB & Genesis -- 🗑️"
@@ -98,23 +108,57 @@ func_consensus()
     case "$1" in
         "generate-genesis" | "gg")
             echo "Generate genesis.json -- 🚀"
-            docker compose run --rm create-beacon-chain-genesis
+            # TODO .ssz있으면 막아야함
+            docker compose run --no-deps --rm create-beacon-chain-genesis
+            ;;
+        "script")
+            echo "Generate genesis.json -- 🚀"
+            # TODO .ssz있으면 막아야함
+            docker compose run --no-deps --rm geth-genesis removedb --datadir=${EXECUTION_ROOT}/data
             ;;
         "create-jwt-secret" | "jwt")
             echo "Create JWT secret -- 🚀"
-            docker compose run --rm beacon-chain generate-auth-secret --output-file=${JWTSECRET_ROOT}
+            docker compose run --no-deps --rm beacon-chain generate-auth-secret --output-file=${JWTSECRET_ROOT}
             ;;
         "run-beacon-chain" | "runb")
             echo "Run Consensus Layer beacon Node -- 🚀"
-            docker compose -p $PROJECT_NAME up -d beacon-chain
+            docker compose -p $PROJECT_NAME up --no-deps -d beacon-chain
             ;;
         "run-validator" | "runv")
             echo "Run Consensus Layer Validator -- 🚀"
-            docker compose -p $PROJECT_NAME up -d validator
+            docker compose -p $PROJECT_NAME up --no-deps -d validator
             ;;
+        "validator-slashing" | "vslashing")
+            echo "Run Consensus Layer Validator -- 🚀"
+            docker compose run --no-deps --rm validator \
+                slashing-protection-history \
+                export \
+                --datadir=${CONSENSUS_ROOT}/validatordata \
+                --slashing-protection-export-dir=${CONSENSUS_ROOT}/validatordata/slash \
+                --accept-terms-of-use
+            ;;
+        "beacon-restore" | "brestore")
+            echo "Run Consensus Layer Validator -- 🚀"
+            docker compose run --no-deps --rm beacon-chain \
+                db restore \
+                --restore-source-file=${CONSENSUS_ROOT}/bea/beaconchain.db \
+                --restore-target-dir=${CONSENSUS_ROOT}/beacondata
+            ;;
+        "validator-restore" | "vrestore")
+            echo "Run Consensus Layer Validator -- 🚀"
+            docker compose run --no-deps --rm validator db \
+                restore \
+                --restore-source-file=${CONSENSUS_ROOT}/vali/prysm_validatordb_1721722512.backup \
+                --restore-target-dir=${CONSENSUS_ROOT}/validatordata
+                # migrate down --datadir ${CONSENSUS_ROOT}/validatordata
+            ;;
+        # "validator-list" | "vlist")
+        #     echo "Run Consensus Layer Validator -- 🚀"
+        #     docker compose run --no-deps --rm validator accounts list --wallet-dir=${CONSENSUS_ROOT}/validatordata/slach --accept-terms-of-use
+        #     ;;
         "clean")
             echo "Clear Beacon data & validator Data -- 🗑️"
-            rm -Rf ./consensus/beacondata ./consensus/validatordata ./consensus/genesis.ssz
+            rm -Rf ./consensus/beacondata ./consensus/validatordata # ./consensus/genesis.ssz
             ;;
         "help" | "-h")
             func_consensus_help
@@ -150,9 +194,30 @@ case "$1" in
         ;;
     "blockscout" | "b")
         func_blockscout $2
-        ;;
+        ;;   
+    "bbackup")
+        # docker compose pause beacon-chain validator
+        curl http://127.0.0.1:8081/db/backup
+        cp ./consensus/beacondata/beaconchaindata/beaconchain.db ./consensus/bea
+        ;;   
+    "gbackup")
+        docker compose stop geth
+        docker compose run --no-deps --rm geth-genesis --datadir $EXECUTION_ROOT/data/geth export $EXECUTION_ROOT/backup/data
+        docker compose restart geth --no-deps 
+        ;;   
+    "backup")
+        curl http://127.0.0.1:8081/db/backup
+        docker compose pause beacon-chain validator
+        docker compose stop geth
+        docker compose run --no-deps --rm geth-genesis --datadir $EXECUTION_ROOT/data/geth export $EXECUTION_ROOT/backup/data
+        cp ./consensus/beacondata/beaconchaindata/beaconchain.db ./consensus/bea
+        docker compose unpause beacon-chain validator
+        docker compose restart geth --no-deps 
+        ;;   
     "clean" | "c")
-        rm -Rf ./consensus/beacondata ./consensus/validatordata ./consensus/genesis.ssz
+        echo "Clear go-ethereum DB & Genesis -- 🗑️"
+        echo "Clear Beacon data & validator Data -- 🗑️"
+        rm -Rf ./consensus/beacondata ./consensus/validatordata # ./consensus/genesis.ssz
         rm -rf ./execution/data/geth
         ;;
     "help" | "h")
