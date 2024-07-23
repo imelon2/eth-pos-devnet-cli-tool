@@ -1,31 +1,33 @@
 version: "3.9"
 services:
-  # create-beacon-chain-genesis:
-  #   image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl"
-  #   command:
-  #     - testnet
-  #     - generate-genesis
-  #     - --fork=${FORK_VERSION}
-  #     - --num-validators=64
-  #     # - --genesis-time-delay=15
-  #     - --output-ssz=${BEACON_GENESIS_ROOT}
-  #     - --chain-config-file=${BEACON_CONFIG_ROOT}
-  #     - --geth-genesis-json-in=${GENESIS_ROOT}
-  #     - --geth-genesis-json-out=${GENESIS_ROOT}
-  #   volumes:
-  #     - ./consensus:${CONSENSUS_ROOT}
-  #     - ./execution:${EXECUTION_ROOT}
+  create-beacon-chain-genesis:
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest"
+    command:
+      - testnet
+      - generate-genesis
+      - --fork=${FORK_VERSION}
+      - --num-validators=10
+      # - --genesis-time-delay=15
+      - --output-ssz=${BEACON_GENESIS_ROOT}
+      # - --output-yaml=${BEACON_GENESIS_ROOT}.yaml
+      # - --output-json=${BEACON_GENESIS_ROOT}.json
+      - --chain-config-file=${BEACON_CONFIG_ROOT}
+      - --geth-genesis-json-in=${GENESIS_ROOT}
+      - --geth-genesis-json-out=${GENESIS_ROOT}
+    volumes:
+      - ./consensus:${CONSENSUS_ROOT}
+      - ./execution:${EXECUTION_ROOT}
   
-  # geth-genesis:
-  #   image: "ethereum/client-go"
-  #   command: --datadir=${EXECUTION_ROOT}/data init ${GENESIS_ROOT}
-  #   volumes:
-  #     - ./consensus:${CONSENSUS_ROOT}
-  #     - ./execution/genesis.json:${GENESIS_ROOT}
-  #     - ./execution:${EXECUTION_ROOT}
-    # depends_on:
-    #   create-beacon-chain-genesis:
-    #     condition: service_completed_successfully
+  geth-genesis:
+    image: "ethereum/client-go"
+    command: --datadir=${EXECUTION_ROOT}/data init ${GENESIS_ROOT}
+    volumes:
+      - ./consensus:${CONSENSUS_ROOT}
+      - ./execution/genesis.json:${GENESIS_ROOT}
+      - ./execution:${EXECUTION_ROOT}
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
 
   beacon-chain:
     container_name: beacon-chain
@@ -35,6 +37,7 @@ services:
       - --min-sync-peers=0
       - --genesis-state=${BEACON_GENESIS_ROOT}
       - --bootstrap-node=
+      - --interop-eth1data-votes
       - --chain-config-file=${BEACON_CONFIG_ROOT}
       - --contract-deployment-block=0
       - --chain-id=${CHAIN_ID}
@@ -51,7 +54,6 @@ services:
       - --monitoring-port=${BEACON_MONITORING_PORT}
       - --pprofport=${BEACON_PPROF_PORT}
       - --force-clear-db
-      # - --interop-eth1data-votes
       # - --restore-source-file=${CONSENSUS_ROOT}/bea/backup
       # - --restore-target-dir=${CONSENSUS_ROOT}/beacondata
     ports:
@@ -63,9 +65,9 @@ services:
     volumes:
       - ./consensus:${CONSENSUS_ROOT}
       - ./execution:${EXECUTION_ROOT}
-    # depends_on:
-    #   create-beacon-chain-genesis:
-    #     condition: service_completed_successfully
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
     logging:
       driver: "json-file"
       options:
@@ -94,10 +96,10 @@ services:
       - --authrpc.port=${GETH_AUTH_RPC_PORT}
       - --authrpc.jwtsecret=${JWTSECRET_ROOT}
       - --beacon.config=${BEACON_CONFIG_ROOT}
+      - --nodiscover
       # - --allow-insecure-unlock
       # - --unlock=${MINER_ADDRESS}
       # - --password=${PASSWORD_ROOT}
-      - --nodiscover
     ports:
       - ${GETH_HOST}:${GETH_AUTH_RPC_PORT}:${GETH_AUTH_RPC_PORT} # AUTH RPC
       - ${GETH_HOST}:${GETH_HTTP_PORT}:${GETH_HTTP_PORT} # RPC
@@ -105,8 +107,8 @@ services:
     volumes:
       - ./execution:${EXECUTION_ROOT}
     depends_on:
-        # geth-genesis:
-        #   condition: service_completed_successfully
+        geth-genesis:
+          condition: service_completed_successfully
         beacon-chain:
           condition: service_started
     logging:

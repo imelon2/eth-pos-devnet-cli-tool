@@ -75,7 +75,8 @@ func_execution()
             ;;
         "run")
             echo "Run Execution Layer go-ethereum Node -- 🚀"
-            docker compose -p $PROJECT_NAME up --no-deps -d geth
+            docker compose up --no-deps -d geth
+            # docker compose -p $PROJECT_NAME up --no-deps -d geth
             ;;
         "export")
             echo "Backup Execution Layer Node DB -- 🚀"
@@ -114,7 +115,10 @@ func_consensus()
         "script")
             echo "Generate genesis.json -- 🚀"
             # TODO .ssz있으면 막아야함
-            docker compose run --no-deps --rm geth-genesis removedb --datadir=${EXECUTION_ROOT}/data
+            docker compose run --no-deps --rm create-beacon-chain-genesis checkpoint-sync download --beacon-node-host=beacon-chain:3500
+            # docker compose run --no-deps --rm create-beacon-chain-genesis db buckets --path=${CONSENSUS_ROOT}/beacondata/beaconchaindata/beaconchain.db --help
+            # docker compose run --no-deps --rm validator accounts list
+            # docker compose run --no-deps --rm geth-genesis removedb --datadir=${EXECUTION_ROOT}/data
             ;;
         "create-jwt-secret" | "jwt")
             echo "Create JWT secret -- 🚀"
@@ -122,11 +126,13 @@ func_consensus()
             ;;
         "run-beacon-chain" | "runb")
             echo "Run Consensus Layer beacon Node -- 🚀"
-            docker compose -p $PROJECT_NAME up --no-deps -d beacon-chain
+            docker compose up --no-deps -d beacon-chain
+            # docker compose -p $PROJECT_NAME up --no-deps -d beacon-chain
             ;;
         "run-validator" | "runv")
             echo "Run Consensus Layer Validator -- 🚀"
-            docker compose -p $PROJECT_NAME up --no-deps -d validator
+            docker compose up --no-deps -d validator
+            # docker compose -p $PROJECT_NAME up --no-deps -d validator
             ;;
         "validator-slashing" | "vslashing")
             echo "Run Consensus Layer Validator -- 🚀"
@@ -148,7 +154,7 @@ func_consensus()
             echo "Run Consensus Layer Validator -- 🚀"
             docker compose run --no-deps --rm validator db \
                 restore \
-                --restore-source-file=${CONSENSUS_ROOT}/vali/prysm_validatordb_1721722512.backup \
+                --restore-source-file=${CONSENSUS_ROOT}/vali/prysm_validatordb_1721743660.backup \
                 --restore-target-dir=${CONSENSUS_ROOT}/validatordata
                 # migrate down --datadir ${CONSENSUS_ROOT}/validatordata
             ;;
