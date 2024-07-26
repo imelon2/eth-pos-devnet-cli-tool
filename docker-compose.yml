@@ -6,37 +6,36 @@ services:
       - testnet
       - generate-genesis
       - --fork=${FORK_VERSION}
-      - --num-validators=10
+      - --num-validators=64
       # - --genesis-time-delay=15
       - --output-ssz=${BEACON_GENESIS_ROOT}
-      # - --output-yaml=${BEACON_GENESIS_ROOT}.yaml
-      # - --output-json=${BEACON_GENESIS_ROOT}.json
       - --chain-config-file=${BEACON_CONFIG_ROOT}
       - --geth-genesis-json-in=${GENESIS_ROOT}
       - --geth-genesis-json-out=${GENESIS_ROOT}
     volumes:
-      - ./consensus:${CONSENSUS_ROOT}
-      - ./execution:${EXECUTION_ROOT}
-  
+      - ${V_CONFIG_DIR}:${CONFIG_DIR}
+    networks:
+      - pos_network
+
   geth-genesis:
     image: "ethereum/client-go"
     command: --datadir=${EXECUTION_ROOT}/data init ${GENESIS_ROOT}
     volumes:
-      - ./consensus:${CONSENSUS_ROOT}
-      - ./execution/genesis.json:${GENESIS_ROOT}
-      - ./execution:${EXECUTION_ROOT}
+      - ${V_CONSENSUS_ROOT}:${CONSENSUS_ROOT}
+      - ${V_EXECUTION_ROOT}:${EXECUTION_ROOT}
+      - ${V_CONFIG_DIR}/genesis.json:${GENESIS_ROOT}
     depends_on:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
+    networks:
+      - pos_network
 
   beacon-chain:
-    container_name: beacon-chain
+    container_name: beacon-chain-${CONTAINER_SUFFIX}
     image: "gcr.io/prysmaticlabs/prysm/beacon-chain:stable"
     command:
       - --datadir=${CONSENSUS_ROOT}/beacondata
-      - --min-sync-peers=0
       - --genesis-state=${BEACON_GENESIS_ROOT}
-      - --bootstrap-node=
       - --interop-eth1data-votes
       - --chain-config-file=${BEACON_CONFIG_ROOT}
       - --contract-deployment-block=0
@@ -49,11 +48,20 @@ services:
       - --accept-terms-of-use
       - --jwt-secret=${JWTSECRET_ROOT}
       - --suggested-fee-recipient=${MINER_ADDRESS}
-      - --minimum-peers-per-subnet=0
       - --enable-debug-rpc-endpoints
       - --monitoring-port=${BEACON_MONITORING_PORT}
+      - --monitoring-host=0.0.0.0
       - --pprofport=${BEACON_PPROF_PORT}
       - --force-clear-db
+      - --minimum-peers-per-subnet=0
+      - --p2p-tcp-port=${P2P_TCP_PORT}
+      - --p2p-udp-port=${P2P_UDP_PORT}
+      - --peer=${PEER:-}
+      - --checkpoint-sync-url=${CHECKPOINT_SYNC_URL:-}
+      - --genesis-beacon-api-url=${CHECKPOINT_SYNC_URL:-}
+      - --bootstrap-node=${BOOT_STRAP_NODE:-}
+      - --min-sync-peers=0
+      - --verbosity=debug
       # - --restore-source-file=${CONSENSUS_ROOT}/bea/backup
       # - --restore-target-dir=${CONSENSUS_ROOT}/beacondata
     ports:
@@ -61,10 +69,13 @@ services:
       - ${BEACON_HOST}:${BEACON_GRPC_PORT}:${BEACON_GRPC_PORT}
       - ${BEACON_HOST}:${BEACON_MONITORING_PORT}:${BEACON_MONITORING_PORT}
       - ${BEACON_HOST}:${BEACON_PPROF_PORT}:${BEACON_PPROF_PORT}
+      - ${BEACON_HOST}:${P2P_TCP_PORT}:${P2P_TCP_PORT}
+      - ${BEACON_HOST}:${P2P_UDP_PORT}:${P2P_UDP_PORT}/udp
       # - 9090:9090
     volumes:
-      - ./consensus:${CONSENSUS_ROOT}
-      - ./execution:${EXECUTION_ROOT}
+      - ${V_CONFIG_DIR}:${CONFIG_DIR}
+      - ${V_CONSENSUS_ROOT}:${CONSENSUS_ROOT}
+      - ${V_EXECUTION_ROOT}:${EXECUTION_ROOT}
     depends_on:
       create-beacon-chain-genesis:
         condition: service_completed_successfully
@@ -73,13 +84,17 @@ services:
       options:
         max-size: "1g"
         max-file: "3"
+    networks:
+      - pos_network
+
   geth:
-    container_name: geth
+    container_name: geth-${CONTAINER_SUFFIX}
     image: "ethereum/client-go"
     command:
       - --datadir=${EXECUTION_ROOT}/data
       - --syncmode=full
       - --networkid=${CHAIN_ID}
+      - --port=${GETH_PORT}
       - --http
       - --http.api=eth,net,txpool
       - --http.addr=0.0.0.0
@@ -95,17 +110,21 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=${GETH_AUTH_RPC_PORT}
       - --authrpc.jwtsecret=${JWTSECRET_ROOT}
-      - --beacon.config=${BEACON_CONFIG_ROOT}
       - --nodiscover
+      - --bootnodes=${BOOTNODES:-}
+      - --metrics
+      # - --maxpendpeers=$NUM_NODES
       # - --allow-insecure-unlock
       # - --unlock=${MINER_ADDRESS}
       # - --password=${PASSWORD_ROOT}
     ports:
+      - ${GETH_HOST}:${GETH_PORT}:${GETH_PORT} # AUTH RPC
       - ${GETH_HOST}:${GETH_AUTH_RPC_PORT}:${GETH_AUTH_RPC_PORT} # AUTH RPC
       - ${GETH_HOST}:${GETH_HTTP_PORT}:${GETH_HTTP_PORT} # RPC
       - ${GETH_HOST}:${GETH_WS_PORT}:${GETH_WS_PORT} # WS
     volumes:
-      - ./execution:${EXECUTION_ROOT}
+      - ${V_EXECUTION_ROOT}:${EXECUTION_ROOT}
+      - ${V_CONFIG_DIR}:${CONFIG_DIR}
     depends_on:
         geth-genesis:
           condition: service_completed_successfully
@@ -116,25 +135,35 @@ services:
       options:
         max-size: "1g"
         max-file: "3"
+    networks:
+      - pos_network
 
   validator:
-    container_name: validator
+    container_name: validator-${CONTAINER_SUFFIX}
     image: "gcr.io/prysmaticlabs/prysm/validator:stable"
     command:
       - --datadir=${CONSENSUS_ROOT}/validatordata
+      - --chain-config-file=${BEACON_CONFIG_ROOT}
       - --beacon-rpc-provider=beacon-chain:${BEACON_RPC_PORT}
       - --accept-terms-of-use
       - --interop-num-validators=64
-      - --chain-config-file=${BEACON_CONFIG_ROOT}
-      - --db-backup-output-dir=${CONSENSUS_ROOT}/vali
       - --enable-db-backup-webhook=true
+      - --rpc-host=0.0.0.0
+      - --rpc-port=${PRYSM_VALIDATOR_RPC_PORT}
+      - --grpc-gateway-host=0.0.0.0
+      - --grpc-gateway-port=${PRYSM_VALIDATOR_GRPC_GATEWAY_PORT}
       - --monitoring-host=0.0.0.0
-      - --monitoring-port=8081
+      - --monitoring-port=${PRYSM_VALIDATOR_MONITORING_PORT}
       - --force-clear-db
+      # - --interop-start-index=0
+      # - --db-backup-output-dir=${CONSENSUS_ROOT}/vali
     ports:
-      - 8081:8081
+      - ${VALIDATOR_HOST}:${PRYSM_VALIDATOR_RPC_PORT}:${PRYSM_VALIDATOR_RPC_PORT}
+      - ${VALIDATOR_HOST}:${PRYSM_VALIDATOR_GRPC_GATEWAY_PORT}:${PRYSM_VALIDATOR_GRPC_GATEWAY_PORT}
+      - ${VALIDATOR_HOST}:${PRYSM_VALIDATOR_MONITORING_PORT}:${PRYSM_VALIDATOR_MONITORING_PORT}
     volumes:
-      - ./consensus:${CONSENSUS_ROOT}
+      - ${V_CONSENSUS_ROOT}:${CONSENSUS_ROOT}
+      - ${V_CONFIG_DIR}:${CONFIG_DIR}
     depends_on:
       beacon-chain:
         condition: service_started
@@ -143,6 +172,12 @@ services:
       options:
         max-size: "1g"
         max-file: "3"
+    networks:
+      - pos_network
+
+networks:
+  pos_network:
+    external: true
 #   ###############################################################################
 #   ###                               blockscout                                ###
 #   ###############################################################################   
